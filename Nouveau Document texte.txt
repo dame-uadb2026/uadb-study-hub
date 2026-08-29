@@ -1,0 +1,118 @@
+import os
+import sqlite3
+from flask import Flask, render_template_string, request, redirect, url_for, flash
+
+app = Flask(__name__)
+app.secret_key = 'uadb_study_hub_secret_key_universelle'
+
+# Définition du chemin de la base de données
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'uadb.db')
+
+# 1. Initialisation de la base de données (exécutée automatiquement)
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Table des matières
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS matieres (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT NOT NULL,
+            niveau TEXT NOT NULL,
+            filiere TEXT NOT NULL,
+            UNIQUE(nom, niveau, filiere)
+        )
+    ''')
+    
+    # Insertions par défaut si la table est vide
+    c.execute('SELECT COUNT(*) FROM matieres')
+    if c.fetchone()[0] == 0:
+        matieres_initiales = [
+            ("Physique Générale", "L1", "PC"),
+            ("Chimie Organique", "L1", "PC"),
+            ("Algèbre 1", "L1", "PC"),
+            ("Analyse 1", "L1", "PC"),
+            ("Thermodynamique", "L2", "PC"),
+            ("Électromagnétisme", "L2", "PC"),
+            ("Algorithmique & Programmation", "L1", "SID"),
+            ("Introduction aux bases de données", "L1", "SID"),
+            ("Statistiques Descriptives", "L1", "SID"),
+            ("Bases de données avancées", "L2", "SID"),
+            ("Développement Web", "L2", "SID")
+        ]
+        for nom, niveau, filiere in matieres_initiales:
+            try:
+                c.execute('INSERT INTO matieres (nom, niveau, filiere) VALUES (?, ?, ?)', (nom, niveau, filiere))
+            except sqlite3.IntegrityError:
+                pass
+                
+    conn.commit()
+    conn.close()
+
+# Exécution de la configuration initiale de la BDD
+init_db()
+
+# 2. Page HTML principale intégrée
+INDEX_HTML = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UADB Study Hub</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; }
+        header { background-color: #0d6efd; color: white; padding: 20px; text-align: center; border-radius: 8px; }
+        .container { max-width: 900px; margin: 20px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        h2 { color: #0d6efd; border-bottom: 2px solid #0d6efd; padding-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .badge { background: #198754; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>UADB Study Hub</h1>
+        <p>Plateforme d'études pour la Faculté des Sciences et Technologies</p>
+    </header>
+    <div class="container">
+        <h2>Liste des Matières Disponibles</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nom de la matière</th>
+                    <th>Niveau</th>
+                    <th>Filière</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in matieres %}
+                <tr>
+                    <td>{{ m[0] }}</td>
+                    <td><strong>{{ m[1] }}</strong></td>
+                    <td><span class="badge">{{ m[2] }}</span></td>
+                    <td>{{ m[3] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
+"""
+
+# 3. Routes de l'application
+@app.route('/')
+def home():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT id, nom, niveau, filiere FROM matieres ORDER BY filiere, niveau')
+    matieres = c.fetchall()
+    conn.close()
+    return render_template_string(INDEX_HTML, matieres=matieres)
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=5000, debug=True)
